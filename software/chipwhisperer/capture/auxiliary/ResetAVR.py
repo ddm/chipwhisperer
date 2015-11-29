@@ -48,7 +48,7 @@ class ResetAVR(AuxiliaryTemplate):
                     {'name':'AVR Part', 'type':'list', 'key':'part', 'values':['atmega328p'], 'value':'atmega328p'},
                     {'name':'Test Reset', 'type':'action', 'action':self.testReset}
                     ]
-        self.params = Parameter.create(name='Frequency Measurement', type='group', children=ssParams)
+        self.params = Parameter.create(name='Reset AVR via STK500', type='group', children=ssParams)
         ExtendedParameter.setupExtended(self.params, self)
 
     def captureInit(self):

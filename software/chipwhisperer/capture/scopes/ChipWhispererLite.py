@@ -451,6 +451,8 @@ class AVRISP(object):
     ISP_PARAM_STATUS_TGT_CONN = 0xA1
     ISP_PARAM_DISCHARGEDELAY = 0xA4
 
+    CMD_SAM3U_CFG = 0x22
+
     MAX_BUFFER_SIZE = 256
 
     def setUSB(self, usbdev, timeout=200):
@@ -488,7 +490,7 @@ class AVRISP(object):
 
     def enableISP(self, status):
         """
-        Enable or disable PDI interface and prepare XMEGA chip for new status, either entering or exiting
+        Enable or disable ISP interface and prepare AVR chip for new status, either entering or exiting
         programming mode.
         
         Raises IOError() if an error occurs (such as no chip found). 
@@ -506,8 +508,7 @@ class AVRISP(object):
                 # Always disable ISP mode lines!
                 global_mod.chipwhisperer_extra.cwEXTRA.setAVRISPMode(status)
                 raise
-
-
+            global_mod.chipwhisperer_extra.cwEXTRA.setAVRISPMode(status)
 
     def _readFuseLockSig(self, cmd, cmds, respindx=4):
         if len(cmds) != 4:
@@ -726,6 +727,13 @@ class AVRISP(object):
     def setChip(self, chiptype):
         self._chip = chiptype
 
+
+    def enableSlowClock(self, enabled):
+        if enabled:
+            self._usbdev.ctrl_transfer(0x41, self.CMD_SAM3U_CFG, 0x01, 0, timeout=self._timeout)
+        else:
+            self._usbdev.ctrl_transfer(0x41, self.CMD_SAM3U_CFG, 0x02, 0, timeout=self._timeout)
+
 class USART(object):
     """
     USART Class communicates with NewAE USB Interface to read/write data over control endpoint.
@@ -866,9 +874,12 @@ class CWLiteUSB(object):
 
     CMD_FPGA_STATUS = 0x15
     CMD_FPGA_PROGRAM = 0x16
+    CMD_FW_VERSION = 0x17
     
     stream = False
 
+    # TODO: make this better
+    fwversion_latest = [0, 11]
 
     def con(self):
         """
@@ -899,12 +910,28 @@ class CWLiteUSB(object):
         self.wep = 0x02
         self._timeout = 200
 
+        fwver = self.readFwVersion()
+        print "SAM3U Firmware version = %d.%d b%d" % (fwver[0], fwver[1], fwver[2])
+
+        if fwver[0] >= self.fwversion_latest[0] and fwver[1] >= self.fwversion_latest[1]:
+            pass
+        else:
+            print "**NOTE: Your CW-Lite firmware is outdated - latest is %d.%d" % (self.fwversion_latest[0], self.fwversion_latest[1])
+            print "**Suggested to update firmware, as you may experience errors"
+
     def close(self):
         """
         Close USB connection
         """
         # self._usbdev.close()
         pass
+    
+    def readFwVersion(self):
+        try:
+            data = self.readCtrl(self.CMD_FW_VERSION, dlen=3)
+            return data
+        except usb.USBError:
+            return [0, 0, 0]
 
     def sendCtrl(self, cmd, value=0, data=[]):
         """
@@ -923,7 +950,8 @@ class CWLiteUSB(object):
     def flushInput(self):
         """Dump all the crap left over"""
         try:
-            self._usbdev.read(self.rep, 1000, timeout=1)
+            # TODO: This probably isn't needed, and causes slow-downs on Mac OS X.
+            self._usbdev.read(self.rep, 1000, timeout=0.010)
         except:
             pass
 
@@ -1132,7 +1160,8 @@ if __name__ == '__main__':
     if cwtestusb.isFPGAProgrammed() == False or force:
         from datetime import datetime
         starttime = datetime.now()
-        cwtestusb.FPGAProgram(open(r"C:\E\Documents\academic\sidechannel\chipwhisperer\hardware\capture\chipwhisperer-lite\hdl\cwlite_ise\cwlite_interface.bit", "rb"))
+        # cwtestusb.FPGAProgram(open(r"C:\E\Documents\academic\sidechannel\chipwhisperer\hardware\capture\chipwhisperer-lite\hdl\cwlite_ise\cwlite_interface.bit", "rb"))
+        cwtestusb.FPGAProgram(open(r"C:\E\Documents\newae\git_repos\CW305_ArtixTarget\temp\artix7test\artix7test.runs\impl_1\cw305_top.bit", "rb"))
         stoptime = datetime.now()
         print "FPGA Config time: %s" % str(stoptime - starttime)
 
@@ -1141,7 +1170,7 @@ if __name__ == '__main__':
     #cwtestusb.cmdWriteMem(0x1A, [235, 126, 5, 4])
     #print cwtestusb.cmdReadMem(0x1A, 4)
 
-    avrprogram = True
+    avrprogram = False
     if avrprogram:
         avr = AVRISP()
         avr.setUSB(cwtestusb._usbdev)
@@ -1194,6 +1223,9 @@ if __name__ == '__main__':
     
         xmega.enablePDI(False)
 
+
+    # cwtestusb.cmdReadMem(0x00, 25)
+    cwtestusb.cmdWriteMem(0, [1, 2, 3, 4, 5, 0xFF])
 
     print "Let's Rock and Roll baby"
 

@@ -126,6 +126,12 @@ except ImportError:
     aux_ResetAVR = None
 
 try:
+    import  chipwhisperer.capture.auxiliary.ResetCW1173Read as aux_ResetCW1173Read
+except ImportError:
+    aux_ResetCW1173Read = None
+
+
+try:
     import  chipwhisperer.capture.auxiliary.GPIOToggle as aux_GPIOToggle
 except ImportError:
     aux_GPIOToggle = None
@@ -347,6 +353,9 @@ class ChipWhispererCapture(MainChip):
         if aux_ResetAVR is not None:
             valid_aux["Reset AVR via ISP-MKII"] = aux_ResetAVR.ResetAVR(console=self.console, showScriptParameter=self.showScriptParameter)
 
+        if aux_ResetCW1173Read is not None:
+            valid_aux["Reset AVR/XMEGA via CW-Lite"] = aux_ResetCW1173Read.ResetCW1173Read(self, console=self.console, showScriptParameter=self.showScriptParameter)
+
         if aux_GPIOToggle is not None:
             valid_aux["Toggle FPGA-GPIO Pins"] = aux_GPIOToggle.GPIOToggle(self, console=self.console, showScriptParameter=self.showScriptParameter)
 
@@ -378,7 +387,7 @@ class ChipWhispererCapture(MainChip):
                 self.target.toplevel_param,
                 {'name':'Trace Format', 'type':'list', 'values':valid_traces, 'value':valid_traces["None"], 'set':self.traceChanged},
 
-                {'name':'Auxilary Module', 'type':'list', 'values':valid_aux, 'value':valid_aux["None"], 'set':self.auxChanged },
+                {'name':'Auxiliary Module', 'type':'list', 'values':valid_aux, 'value':valid_aux["None"], 'set':self.auxChanged },
 
                 # {'name':'Key Settings', 'type':'group', 'children':[
                 #        {'name':'Encryption Key', 'type':'str', 'value':self.textkey, 'set':self.setKey},
@@ -626,12 +635,13 @@ class ChipWhispererCapture(MainChip):
         self.captureStatus.setDefaultAction(self.captureStatusActionDis)
 
         self.CaptureToolbar = self.addToolBar('Capture Tools')
-        self.CaptureToolbar.setObjectName('Capture Tools')
+        self.CaptureToolbar.setObjectName('Capture Toolbar')
         self.CaptureToolbar.addAction(self.capture1Act)
         self.CaptureToolbar.addAction(self.captureMAct)
         self.CaptureToolbar.addWidget(QLabel('Master:'))
         self.CaptureToolbar.addWidget(self.captureStatus)
-        #self.CaptureToolbar.setEnabled(False)
+        # Unknown bug on MAC OS X requires this + the different name for setObjectName
+        self.CaptureToolbar.show()
 
         # Scope Toolbar
         self.scopeStatus = QToolButton()
@@ -980,6 +990,9 @@ class ChipWhispererCapture(MainChip):
         self.project().addParamTree(self.target)
         self.project().setTraceManager(self.manageTraces)
         self.setCurrentFile(None)
+
+        # TODO: Fix this hack
+        self.macWorkArounds()
 
     def saveProject(self):
         if self.project().hasFilename() == False:
